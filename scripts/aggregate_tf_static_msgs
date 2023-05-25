@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+# stdlib
+import argparse
+import os
+from copy import deepcopy
+
+# 3rd-party
+import rosbag
+from tqdm import tqdm
+from colorama import Fore, Style
+from tf2_msgs.msg import TFMessage
+from geometry_msgs.msg import TransformStamped, Transform
+from pytictoc import TicToc
+
+if __name__ == "__main__":
+    # --------------------------------------------------------------------------
+    # Parse command line arguments
+    # --------------------------------------------------------------------------
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-bfi", "--bagfile_in", help='Full path to the input bagfile', type=str, required=True)
+    ap.add_argument("-bfo", "--bagfile_out", help='Full path to output the bagfile. If not given will be named aggregated.bag and placed on the same folder as the input bag.', type=str, required=False)
+
+    args = vars(ap.parse_args())
+
+    if args['bagfile_out'] is None:
+        path = os.path.dirname(args['bagfile_in'])
+        print(path)
+        args['bagfile_out'] = path + '/aggregated.bag'
+
+    # --------------------------------------------------------------------------
+    # Initial setup
+    # --------------------------------------------------------------------------
+    tictoc = TicToc()
+    tictoc.tic()
+    bag_out = rosbag.Bag(args['bagfile_out'], 'w')
+
+    # --------------------------------------------------------------------------
+    # Read the bag input file
+    # --------------------------------------------------------------------------
+    bag_file = args['bagfile_in']
+    print('Loading bagfile ' + bag_file)
+    bag = rosbag.Bag(bag_file) # load the bag file
+    bag_info = bag.get_type_and_topic_info()
+    bag_types = bag_info[0]
+    bag_topics = bag_info[1]
+
+    # --------------------------------------------------------------------------
+    # Get initial stamp to compute mission time
+    # --------------------------------------------------------------------------
+    for topic, msg, stamp in bag.read_messages():
+        initial_stamp = stamp
+        break
+
+    # --------------------------------------------------------------------------
+    # Get all transforms with tf_static
+    # --------------------------------------------------------------------------
+    def generateTransformKey(transform):
+        return transform.header.frame_id + '_to_' + transform.child_frame_id
+
+    transforms_dict = {} # a dicts of all transforms in the tf_static topics. Keys are strings with <parent>_to_<child> patterns
+
+    print('Searching for msgs on topic /tf_static. Please wait...')
+    for topic, msg, stamp, connection_header in tqdm(bag.read_messages(return_connection_header=True), total=bag.get_message_count(), desc='Processing bag messages'):
+
+        if topic == '/tf_static':
+            for transform in msg.transforms:
+                key = generateTransformKey(transform)
+                transforms_dict[key] = transform
+
+    print('Found ' + str(len(transforms_dict.keys())) + ' static transforms in the bagfile.')
+
+    # Create an aggregate /tf_static message to publish instead of all others
+    static_transform_msg = TFMessage()
+    for key, transform in transforms_dict.items(): 
+        static_transform_msg.transforms.append(transform)
+
+    # Get a connection_header for a tf_static msg
+    for topic, msg, stamp, connection_header in bag.read_messages(return_connection_header=True):
+        if topic == '/tf_static':
+            tf_static_connection_header = connection_header
+            break
+            
+    # --------------------------------------------------------------------------
+    # Writing new bagfile
+    # --------------------------------------------------------------------------
+    print('Producing bagfile. Please wait...')
+    bag_out.write('/tf_static', static_transform_msg, initial_stamp, connection_header=tf_static_connection_header)
+
+    for topic, msg, stamp, connection_header in tqdm(bag.read_messages(return_connection_header=True), total=bag.get_message_count(), desc='Processing bag messages'):
+        mission_time = (stamp - initial_stamp)
+
+        if not topic == '/tf_static':
+            bag_out.write(topic, msg, stamp, connection_header=connection_header)
+
+
+    bag.close() # close the bag file.
+    bag_out.close() # close the bag file.
+
+    # Print final report
+    print('Finished in ' + str(round(tictoc.tocvalue(),2)) + ' seconds.')
+    print('Created new bagfile ' + Fore.BLUE + args['bagfile_out'] + Style.RESET_ALL + ' in ' + str(round(tictoc.tocvalue(),2)) + ' seconds.')

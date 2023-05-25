@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+
+# stdlib
+import argparse
+from copy import deepcopy
+
+# 3rd-party
+import rosbag
+from tqdm import tqdm
+from colorama import Fore, Style
+from tf2_msgs.msg import TFMessage
+from geometry_msgs.msg import TransformStamped, Transform
+from pytictoc import TicToc
+
+# local packages
+
+if __name__ == "__main__":
+    # Parse command line arguments
+    ap = argparse.ArgumentParser()
+    # ap.add_argument("-bfi", "--bagfile_in", help='Full path to the bagfile', type=str, required=True)
+    # ap.add_argument("-bfo", "--bagfile_out", help='Full path to the bagfile', type=str, required=True)
+    # ap.add_argument("-p", "--parent", help='Transform parent', type=str, required=True)
+    # ap.add_argument("-c", "--child", help='Transform child', type=str, required=True)
+    # ap.add_argument("-bfi", "--bagfile_in", help='Full path to the bagfile', type=str, default='/home/mike/bagfiles/zaubot/zau_full_calibration_train_bag.bag')
+    ap.add_argument("-bfi", "--bagfile_in", help='Full path to the bagfile', type=str, default='/home/mike/bagfiles/zaubot/clipped.bag')
+    args = vars(ap.parse_args())
+
+    # --------------------------------------------------------------------------
+    # Initial setup
+    # --------------------------------------------------------------------------
+    tictoc = TicToc()
+    tictoc.tic()
+
+    # --------------------------------------------------------------------------
+    # Read the bag input file
+    # --------------------------------------------------------------------------
+    bag_file = args['bagfile_in']
+    print('Loading bagfile ' + bag_file)
+    bag = rosbag.Bag(bag_file) # load the bag file
+    bag_info = bag.get_type_and_topic_info()
+    bag_types = bag_info[0]
+    bag_topics = bag_info[1]
+
+    # --------------------------------------------------------------------------
+    # Get initial stamp to compute mission time
+    # --------------------------------------------------------------------------
+    for topic, msg, stamp in bag.read_messages():
+        initial_stamp = stamp
+        break
+
+    # --------------------------------------------------------------------------
+    # Read bagfile
+    # --------------------------------------------------------------------------
+    print('Inspecting bagfile. Please wait...')
+    for topic, msg, stamp, connection_header in bag.read_messages(return_connection_header=True):
+
+        mission_time = round((stamp - initial_stamp).to_sec(),1)
+
+        if topic == '/tf_static':
+
+            print('Msg at time ' + str(mission_time) + ' contains ' + str(len(msg.transforms)) + ' transforms.')
+            if connection_header['latching'] == b'1':
+                print(Fore.RED + 'Msg is latched' + Style.RESET_ALL)
+            else:
+                print('Msg is not latched')
+
+            for transform_idx, transform in enumerate(msg.transforms): # iterate all transforms
+                print('   ' + transform.header.frame_id + ' to ' + transform.child_frame_id)
+
+          
+
+
+
+
+    bag.close() # close the bag file.
+
+    # Print final report
+    print('Finished in ' + str(round(tictoc.tocvalue(),2)) + ' seconds.')
