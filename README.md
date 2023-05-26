@@ -13,7 +13,7 @@ A set of tools for processing rosbags.
 
     ./correct_poses -bfi original.bag -t /tf_static -p ee_link -c hand_camera -trans 0.1 0.1 0.1 -rot 0.5 0.5 0.5 0.5
 
-## Deleting links:
+## Deleting links (by giving the links to keep):
 
     ./delete_tfs_in_bagfile -bfi original.bag -ttk base_link shoulder_link upper_arm_link forearm_link wrist_1_link wrist_2_link wrist_3_link ee_link cam_1_link
 
