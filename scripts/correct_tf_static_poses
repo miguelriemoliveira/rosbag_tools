@@ -93,27 +93,5 @@ if __name__ == "__main__":
     # Print final report
     print('Finished in ' + str(round(tictoc.tocvalue(),2)) + ' seconds.')
 
-    # Check if throttled topics exist
-#     throttle_topics = {}
-#     use_throttle_topics = {}
-#     for sensor_key in config['sensors']:
-#         topic = config['sensors'][sensor_key]['topic_name']
-#         topic_compressed = topic + '/compressed'
-#         if topic_compressed in bag_topics:  # Check if the topic is a compressed image topic
-#             topic = topic_compressed
-#         if 'throttle' in config['sensors'][sensor_key]:
-#             throttle = config['sensors'][sensor_key]['throttle']
-#             print('Sensor ' + sensor_key + ' has throttle')
-# 
-#             use_throttle = True
-#         else:
-#             print('Sensor ' + sensor_key + ' does not have throttle')
-#             throttle = None
-#             use_throttle = False
-#         # else:
-# 
-#         throttle_topics[topic] = {'throttled_topic': topic, 'sensor_key': sensor_key, 'use_throttle': use_throttle,
-#                                   'throttle_hz': throttle}
-
 
    
