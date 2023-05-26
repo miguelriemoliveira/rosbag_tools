@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+
+# stdlib
+import os
+import argparse
+from tqdm import tqdm
+
+# 3rd-party
+import rosbag
+from pytictoc import TicToc
+
+"""
+Usage:
+./correct_poses -bfi original.bag -t /tf_static -p ee_link -c hand_camera -trans 0.1 0.1 0.1 -rot 0.5 0.5 0.5 0.5
+"""
+
+if __name__ == "__main__":
+    # Parse command line arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-bfi", "--bagfile_in", help='Full path to the bagfile', type=str, required=True)
+    ap.add_argument("-bfo", "--bagfile_out", help='Full path to output the bagfile. If not given will be named corrected.bag and placed on the same folder as the input bag.', type=str, required=False)
+    ap.add_argument("-t", "--topic_to_correct", help='Topic to correct transformations. E.g. -t /tf_static or /tf', type=str, required=True)
+    ap.add_argument("-p", "--parent", help='Transform parent', type=str, required=True)
+    ap.add_argument("-c", "--child", help='Transform child', type=str,required=True)   
+    ap.add_argument("-trans", "--translations", help='Translation values for x, y, z. E.g. -trans 0.1 0.1 0.1.', type=float, required=False, nargs='+')    
+    ap.add_argument("-rot", "--rotations", help='Quaternion values x, y, z, w. E.g. -rot 0.0 0.0 0.0 1.0', type=float, required=False, nargs='+')
+    args = vars(ap.parse_args())
+    
+    if args['translations']:
+        translations = args['translations']
+    
+    if args['rotations']:
+        rotations = args['rotations']
+        
+    if not args['translations'] and not args['rotations']:
+        print('New translations or rotation values not specified.')
+        exit(0)
+    
+    if args['bagfile_out'] is None:
+        path = os.path.dirname(args['bagfile_in'])
+        print(path)
+        args['bagfile_out'] = path + '/corrected.bag'
+        
+    print('Creating a new bag ' + args['bagfile_out'])
+
+    # --------------------------------------------------------------------------
+    # Initial setup
+    # --------------------------------------------------------------------------
+    tictoc = TicToc()
+    tictoc.tic()
+    bag_out = rosbag.Bag(args['bagfile_out'], 'w')
+
+    # --------------------------------------------------------------------------
+    # Read the bag input file
+    # --------------------------------------------------------------------------
+    bag_file = args['bagfile_in']
+    print('Loading bagfile ' + bag_file)
+    bag = rosbag.Bag(bag_file) # load the bag file
+    bag_info = bag.get_type_and_topic_info()
+    bag_types = bag_info[0]
+    bag_topics = bag_info[1]
+
+    # --------------------------------------------------------------------------
+    # Get initial stamp to compute mission time
+    # --------------------------------------------------------------------------
+    for topic, msg, stamp in bag.read_messages():
+        initial_stamp = stamp
+        break
+
+    # --------------------------------------------------------------------------
+    # Writing new bagfile
+    # --------------------------------------------------------------------------
+    for topic, msg, stamp, connection_header in tqdm(bag.read_messages(return_connection_header=True), total=bag.get_message_count(), desc='Processing bag messages'):
+        mission_time = (stamp - initial_stamp)
+
+        # if mission_time.to_sec() > 10: # just for testing fast, analyze messages only until 10 secs mission time.
+        #     break
+
+        if topic == args['topic_to_correct']:
+            for transform_idx, transform in enumerate(msg.transforms): # iterate all transforms
+                if transform.header.frame_id == args['parent'] and transform.child_frame_id ==args['child']: # the specific transform we want to change
+         
+                    print(f"Changing transform in msg on topic {args['topic_to_correct']} with parent {transform.header.frame_id} and child {transform.child_frame_id} at time {str((stamp-initial_stamp).to_sec())}")
+                    
+                    
+                    print('Before:\n ' + str(transform.transform)) # initial transform
+                    
+                    if args['translations']:
+                    
+                        # this is an example
+                        transform.transform.translation.x = translations[0]
+                        transform.transform.translation.y = translations[0]
+                        transform.transform.translation.z = translations[0]
+                    
+                    if args['rotations']:
+                        transform.transform.rotation.x = rotations[0]
+                        transform.transform.rotation.y = rotations[1]
+                        transform.transform.rotation.z = rotations[2]
+                        transform.transform.rotation.w = rotations[3]
+                        
+                    print('After:\n' + str(transform.transform)) # final transform
+
+        # write msg to bag_out
+        bag_out.write(topic, msg, stamp, connection_header=connection_header)
+
+    bag.close() # close the bag file.
+    bag_out.close() # close the bag file.
+
+    # Print final report
+    print('Finished in ' + str(round(tictoc.tocvalue(),2)) + ' seconds.')
+
+
+   
