@@ -95,7 +95,7 @@ if __name__ == "__main__":
                 msg.K = tuple(msg.K)
 
             if args['r_matrix']:
-                msg.R = list(msg.K)
+                msg.R = list(msg.R)
                 msg.R[0] = r_matrix[0]
                 msg.R[1] = r_matrix[1]
                 msg.R[2] = r_matrix[2]
