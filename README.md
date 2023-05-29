@@ -17,4 +17,9 @@ A set of tools for processing rosbags.
 
     ./delete_tfs_in_bagfile -bfi original.bag -ttk base_link shoulder_link upper_arm_link forearm_link wrist_1_link wrist_2_link wrist_3_link ee_link cam_1_link
 
+## Update intrinsics parameters in camera info topic:
+
+    ./config_camera_intrinsics -bfi original.bag -ct camera/camera_info -d 0.6 -2.2 -0.0 0.0 0.0 -k 2125.6 0.0 1018.8 0.0 2056.6 549.2 0.0 0.0 1.0 -r 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0 -p 2210.4 0.0 1025.5 0.0 0.0 2148.7 537.7 0.0 0.0 0.0 1.0 0.0
+
+
 
