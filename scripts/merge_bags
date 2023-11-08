@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+
+import rosbag
+from colorama import Fore, Style
+from pytictoc import TicToc
+from tqdm import tqdm
+
+"""
+Usage:
+
+./delete_tfs -bfi original.bag 
+
+"""
+
+if __name__ == "__main__":
+    # Parse command line arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-bfi1", "--bagfile_in_1", help='Full path to the bagfile', type=str, required=True)
+    ap.add_argument("-bfi2", "--bagfile_in_2", help='Full path to the bagfile', type=str, required=True)
+    ap.add_argument("-bfo", "--bagfile_out",
+                    help='Full path to output the bagfile. If not given will be named out.bag and placed on the same folder as the input bag.',
+                    type=str, required=False)
+    # ap.add_argument("-t", "--topics_to_remove", help='Topics to remove from the bagfile. Example: ... -t topic1 topic2 topic3', type=str, required=True,  nargs='+')
+    args = vars(ap.parse_args())
+
+    if args['bagfile_out'] is None:
+        path = os.path.dirname(args['bagfile_in_1'])
+        args['bagfile_out'] = path + '/out.bag'
+
+    # print('Producing a new bag ' + Fore.BLUE + args['bagfile_out'] + Style.RESET_ALL + ' without topics:\n' + Fore.GREEN + str('\n'.join(args['topics_to_remove'])) + Style.RESET_ALL)
+
+    # --------------------------------------------------------------------------
+    # Read the bag input file
+    # --------------------------------------------------------------------------
+    bag_file_1 = args['bagfile_in_1']
+    bag_1 = rosbag.Bag(bag_file_1)  # load the bag file
+    bag_info_1 = bag_1.get_type_and_topic_info()
+    bag_types_1 = bag_info_1[0]
+    bag_topics_1 = bag_info_1[1]
+
+    bag_file_2 = args['bagfile_in_2']
+    bag_2 = rosbag.Bag(bag_file_2)  # load the bag file
+    bag_info_2 = bag_2.get_type_and_topic_info()
+    bag_types_2 = bag_info_2[0]
+    bag_topics_2 = bag_info_2[1]
+
+    # --------------------------------------------------------------------------
+    # Initial setup
+    # --------------------------------------------------------------------------
+    tictoc = TicToc()
+    tictoc.tic()
+    bag_out = rosbag.Bag(args['bagfile_out'], 'w')
+
+    # --------------------------------------------------------------------------
+    # Get initial stamp to compute mission time
+    # --------------------------------------------------------------------------
+    for topic, msg, stamp in bag_1.read_messages():
+        initial_stamp_1 = stamp
+        print(initial_stamp_1)
+        break
+
+    for topic, msg, stamp in bag_2.read_messages():
+        initial_stamp_2 = stamp
+        print(initial_stamp_2)
+        break
+    # exit(0)
+
+    stamp_posterior = 0
+    if initial_stamp_1 > initial_stamp_2:
+        stamp_posterior = 1
+    else:
+        stamp_posterior = 2
+        # --------------------------------------------------------------------------
+    # Writing new bagfile
+    # --------------------------------------------------------------------------
+    print('Converting bagfile. Please wait...')
+    for topic, msg, stamp, connection_header in tqdm(bag_1.read_messages(return_connection_header=True),
+                                                     total=bag_1.get_message_count(), desc='Processing bag messages'):
+        # print
+        if stamp_posterior == 2:
+            stamp = stamp + (initial_stamp_2-initial_stamp_1)
+        bag_out.write(topic, msg, stamp, connection_header=connection_header)
+
+    for topic, msg, stamp, connection_header in tqdm(bag_2.read_messages(return_connection_header=True),
+                                                     total=bag_2.get_message_count(), desc='Processing bag messages'):
+        if stamp_posterior == 1:
+            stamp = stamp + (initial_stamp_1-initial_stamp_2)
+        bag_out.write(topic, msg, stamp, connection_header=connection_header)
+
+    bag_1.close()  # close the bag file.
+    bag_out.close()  # close the bag file.
+
+    print('Finished in ' + str(round(tictoc.tocvalue(), 2)) + ' seconds.')
