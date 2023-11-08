@@ -59,12 +59,12 @@ if __name__ == "__main__":
     # --------------------------------------------------------------------------
     for topic, msg, stamp in bag_2.read_messages():
         initial_stamp_2 = stamp
-        print(initial_stamp_2)
+        # print(initial_stamp_2)
         break
 
     for topic, msg, stamp in bag_1.read_messages():
         final_stamp_1 = stamp
-    print(final_stamp_1)
+    # print(final_stamp_1)
         # break
 
     # exit(0)
