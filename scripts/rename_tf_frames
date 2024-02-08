@@ -70,16 +70,15 @@ if __name__ == "__main__":
 
     for topic, msg, stamp, connection_header in tqdm(bag.read_messages(return_connection_header=True), total=bag.get_message_count(), desc='Processing bag messages'):
         
-        if topic == "/tf" and msg.transforms:
+        if ((topic == "/tf" or topic == "/tf_static") and msg.transforms):
             for i in range(len(msg.transforms)):                
                 if msg.transforms[i].header.frame_id in frames_to_rename:
                     frame_name_idx = frames_to_rename.index(msg.transforms[i].header.frame_id)
                     msg.transforms[i].header.frame_id = new_frame_names[frame_name_idx]
                     
                 if msg.transforms[i].child_frame_id in frames_to_rename:
-                    frame_name_idx = frames_to_rename.index(msg.transforms[i].header.child_frame_id)
-                    msg.transforms[i].header.child_frame_id = new_frame_names[frame_name_idx]
-
+                    frame_name_idx = frames_to_rename.index(msg.transforms[i].child_frame_id)
+                    msg.transforms[i].child_frame_id = new_frame_names[frame_name_idx]
 
         bag_out.write(topic, msg, stamp, connection_header=connection_header)
     
