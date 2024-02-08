@@ -21,5 +21,7 @@ A set of tools for processing rosbags.
 
     ./config_camera_intrinsics -bfi original.bag -ct camera/camera_info -d 0.6 -2.2 -0.0 0.0 0.0 -k 2125.6 0.0 1018.8 0.0 2056.6 549.2 0.0 0.0 1.0 -r 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0 -p 2210.4 0.0 1025.5 0.0 0.0 2148.7 537.7 0.0 0.0 0.0 1.0 0.0
 
+## Rename transformation frames:
 
+    ./rename_tf_frames -bfi original.bag -ftr frame_1 frame_2 frame_3 -nfn new_frame_1 new_frame_2 new_frame_3
 
