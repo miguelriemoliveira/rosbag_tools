@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+
+import rosbag
+from colorama import Fore, Style
+from pytictoc import TicToc
+from tqdm import tqdm
+import rospy
+
+"""
+Delay topics for a given time duration 
+
+Usage:
+
+./delay_topic -bfi original.bag -to topic1 topic2 -ti 0.5 2.0
+
+"""
+
+if __name__ == "__main__":
+    # Parse command line arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-bfi", "--bagfile_in", help='Full path to the bagfile', type=str, required=True)
+    ap.add_argument("-bfo", "--bagfile_out", help='Full path to output the bagfile. If not given will be named out.bag and placed on the same folder as the input bag.', type=str, required=False)
+    ap.add_argument("-to", "--topics_to_delay", help='Topics to delay from the bagfile. Should be correspondent to time_to_delay. Example: ... -to topic1 topic2 topic3', type=str, required=True,  nargs='+')
+    ap.add_argument("-ti", "--time_to_delay", help='Time to delay from the bagfile. Should be correspondent to topic_to_delay. Example: ... -ti 3.0 3.5 0.5', type=float, required=True,  nargs='+')
+    args = vars(ap.parse_args())
+
+    # Arg verification
+    if not len(args['topics_to_delay']) == len(args['time_to_delay']):
+        ValueError('Number of topics to delay is not the same as number of time to delay. Aborting.')
+    
+    if args['bagfile_out'] is None:
+        path = os.path.dirname(args['bagfile_in'])
+        args['bagfile_out'] = path + '/out.bag'
+        
+    print('Producing a new bag ' + Fore.BLUE + args['bagfile_out'] + Style.RESET_ALL + ' with topics:\n' + Fore.GREEN + str('\n'.join(args['topics_to_delay'])) + Style.RESET_ALL
+                                                                                     + '\nwith delays of:\n' + Fore.GREEN + str(args['time_to_delay']) + Style.RESET_ALL)
+
+    # --------------------------------------------------------------------------
+    # Read the bag input file
+    # --------------------------------------------------------------------------
+    bag_file = args['bagfile_in']
+    print('Loading bagfile ' + bag_file)
+    bag = rosbag.Bag(bag_file) # load the bag file
+    bag_info = bag.get_type_and_topic_info()
+    bag_types = bag_info[0]
+    bag_topics = bag_info[1]
+    
+    # --------------------------------------------------------------------------
+    # Initial setup
+    # --------------------------------------------------------------------------
+    tictoc = TicToc()
+    tictoc.tic()
+    bag_out = rosbag.Bag(args['bagfile_out'], 'w')
+    
+    # --------------------------------------------------------------------------
+    # Get initial stamp to compute mission time
+    # --------------------------------------------------------------------------
+    for topic, msg, stamp in bag.read_messages():
+        initial_stamp = stamp
+        break
+    
+    # --------------------------------------------------------------------------
+    # Writing new bagfile
+    # --------------------------------------------------------------------------
+    print('Converting bagfile. Please wait...')
+    for topic, msg, stamp, connection_header in tqdm(bag.read_messages(return_connection_header=True), total=bag.get_message_count(), desc='Processing bag messages'):
+        
+        if topic in args['topics_to_delay']:
+            index = [idx for idx, val in enumerate(args['topics_to_delay']) if val == topic][0]
+            delay_time = args['time_to_delay'][index]
+            msg.header.stamp -= rospy.Duration.from_sec(delay_time)
+            stamp -= rospy.Duration.from_sec(delay_time)
+
+            
+        bag_out.write(topic, msg, stamp, connection_header=connection_header)
+    
+    bag.close() # close the bag file.
+    bag_out.close() # close the bag file.
+    
+    print('Finished in ' + str(round(tictoc.tocvalue(),2)) + ' seconds.')
+    
+    
