@@ -21,7 +21,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("-bfi", "--bagfile_in", help='Full path to the bagfile', type=str, required=True)
     ap.add_argument("-bfo", "--bagfile_out", help='Full path to output the bagfile. If not given will be named processed.bag and placed on the same folder as the input bag.', type=str, required=False)
-    ap.add_argument("-ttk", "--transformations_to_keep", help='Transformations to keep in the bag file on the topic /tf. Example: ... -ttk tf_1 tf_2', type=str, required=True,  nargs='+')
+    # ap.add_argument("-ttk", "--transformations_to_keep", help='Transformations to keep in the bag file on the topic /tf. Example: ... -ttk tf_1 tf_2', type=str, required=True,  nargs='+')
+    ap.add_argument("-ftd", "--frames_to_delete", help='Frames to delete in the bag file on the topic /tf. Example: ... -ftd tf_1 tf_2', type=str, required=True,  nargs='+')
     args = vars(ap.parse_args())
     
     if args['bagfile_out'] is None:
@@ -30,7 +31,7 @@ if __name__ == "__main__":
         args['bagfile_out'] = path + '/cropped.bag'
         
     print('Creating a new bag ' + args['bagfile_out'])
-    transformations_to_keep = args['transformations_to_keep']
+    frames_to_delete = args['frames_to_delete']
     
     # --------------------------------------------------------------------------
     # Read the bag input file
@@ -67,12 +68,19 @@ if __name__ == "__main__":
         # if mission_time.to_sec() > 10: # just for testing fast, analyze messages only until 10 secs mission time.
         #     break
         
-        if topic == "/tf" and msg.transforms:
+        # if topic == "/tf" and msg.transforms:
+        #     transforms_to_keep = []
+        #     for i in range(len(msg.transforms)):                
+        #         if msg.transforms[i].header.frame_id in transformations_to_keep and msg.transforms[i].child_frame_id in transformations_to_keep:
+        #             transforms_to_keep.append(msg.transforms[i])
+        if topic in ["/tf", "/tf_static"] and msg.transforms:
             transforms_to_keep = []
             for i in range(len(msg.transforms)):                
-                if msg.transforms[i].header.frame_id in transformations_to_keep and msg.transforms[i].child_frame_id in transformations_to_keep:
-                    transforms_to_keep.append(msg.transforms[i])
-            
+                if msg.transforms[i].header.frame_id in frames_to_delete or msg.transforms[i].child_frame_id in frames_to_delete:
+                    continue
+
+                transforms_to_keep.append(msg.transforms[i])
+
             # print(f'Transformations to keep: {transforms_to_keep}')        
             msg.transforms = transforms_to_keep                        
             bag_out.write(topic, msg, stamp, connection_header=connection_header)
