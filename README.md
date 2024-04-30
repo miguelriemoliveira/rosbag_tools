@@ -25,3 +25,7 @@ A set of tools for processing rosbags.
 
     ./rename_tf_frames -bfi original.bag -ftr frame_1 frame_2 frame_3 -nfn new_frame_1 new_frame_2 new_frame_3
 
+## Invert transformations:
+
+    ./invert_tfs -bfi original.bag -t parent1 child1 -t parent2 child2
+

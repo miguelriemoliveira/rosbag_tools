@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import rosbag
+import numpy as np
+from pytictoc import TicToc
+from tqdm import tqdm
+from geometry_msgs.msg import TransformStamped
+from scipy.spatial.transform import Rotation as R
+
+
+"""
+Usage:
+
+./invert_tfs -bfi original.bag -t parent1 child1 -t parent2 child2
+
+"""
+
+
+if __name__ == "__main__":
+    # Parse command line arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-bfi", "--bagfile_in", help='Full path to the bagfile', type=str, required=True)
+    ap.add_argument("-bfo", "--bagfile_out", help='Full path to output the bagfile. If not given will be named processed.bag and placed on the same folder as the input bag.', 
+                                             type=str, required=False)
+    ap.add_argument("-t", "--transformations", help='Transformations to invert in the bag file on the topic /tf or /tf_static.' 
+                                                    'Example: ... -t parent1 child1 -t parent2 child2', type=str, required=True,  nargs='+', action='append')
+
+    args = vars(ap.parse_args())
+    
+    if args['bagfile_out'] is None:
+        path = os.path.dirname(args['bagfile_in'])
+        print(path)
+        args['bagfile_out'] = path + '/processed.bag'
+        
+    print('Creating a new bag ' + args['bagfile_out'])
+    
+    # --------------------------------------------------------------------------
+    # Read the bag input file
+    # --------------------------------------------------------------------------
+    bag_file = args['bagfile_in']
+    print('Loading bagfile ' + bag_file)
+    bag = rosbag.Bag(bag_file) # load the bag file
+    
+    # --------------------------------------------------------------------------
+    # Initial setup
+    # --------------------------------------------------------------------------
+    tictoc = TicToc()
+    tictoc.tic()
+    bag_out = rosbag.Bag(args['bagfile_out'], 'w')
+    
+    
+    # --------------------------------------------------------------------------
+    # Get initial stamp to compute mission time
+    # --------------------------------------------------------------------------
+    for topic, msg, stamp in bag.read_messages():
+        initial_stamp = stamp
+        break
+    
+    # --------------------------------------------------------------------------
+    # Writing new bagfile
+    # --------------------------------------------------------------------------
+    print('Converting bagfile. Please wait...')
+
+    # Iterate over each message in the bag file
+    for topic, msg, stamp, connection_header in tqdm(bag.read_messages(return_connection_header=True), total=bag.get_message_count(), desc='Processing bag messages'):
+        if ((topic == "/tf" or topic == "/tf_static") and msg.transforms):
+            for i in range(len(msg.transforms)):
+                # Check if the transformation needs to be inverted
+                if [msg.transforms[i].header.frame_id, msg.transforms[i].child_frame_id] in args['transformations']:
+                    # Invert the transformation
+                    inverted_transform = TransformStamped()
+                    inverted_transform.header = msg.transforms[i].header
+                    inverted_transform.child_frame_id = msg.transforms[i].header.frame_id
+                    inverted_transform.header.frame_id = msg.transforms[i].child_frame_id
+
+                    # Create the transformation matrix
+                    transformation_matrix = np.zeros((4,4))
+                    transformation_matrix[0:3, 0:3] = R.from_quat([
+                        msg.transforms[i].transform.rotation.x,
+                        msg.transforms[i].transform.rotation.y,
+                        msg.transforms[i].transform.rotation.z,
+                        msg.transforms[i].transform.rotation.w
+                    ]).as_matrix()
+                    transformation_matrix[:, 3] = np.array([
+                        msg.transforms[i].transform.translation.x,
+                        msg.transforms[i].transform.translation.y,
+                        msg.transforms[i].transform.translation.z,
+                        1
+                    ])
+
+                    # Invert the transformation matrix
+                    inverted_transformation_matrix = np.linalg.inv(transformation_matrix)
+
+                    # Update the translation values in the inverted transformation
+                    inverted_transform.transform.translation.x = inverted_transformation_matrix[0, 3]
+                    inverted_transform.transform.translation.y = inverted_transformation_matrix[1, 3]
+                    inverted_transform.transform.translation.z = inverted_transformation_matrix[2, 3]
+
+                    # Update the rotation values in the inverted transformation
+                    inverted_rotation_quat = R.from_matrix(inverted_transformation_matrix[0:3, 0:3]).as_quat()
+                    inverted_transform.transform.rotation.x = inverted_rotation_quat[0]
+                    inverted_transform.transform.rotation.y = inverted_rotation_quat[1]
+                    inverted_transform.transform.rotation.z = inverted_rotation_quat[2]
+                    inverted_transform.transform.rotation.w = inverted_rotation_quat[3]
+
+                    # Replace the original transformation with the inverted transformation
+                    msg.transforms[i] = inverted_transform
+
+        # Write the modified message to the output bag file
+        bag_out.write(topic, msg, stamp, connection_header=connection_header)
+    bag.close() # close the bag file.
+    bag_out.close() # close the bag file.
+    
+    print('Finished in ' + str(round(tictoc.tocvalue(),2)) + ' seconds.')
+    
+    
