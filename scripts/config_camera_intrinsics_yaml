@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import yaml
+
+from rosbag_tools.config_camera_intrinsics import config_camera_intrinsics
+
+
+if __name__ == "__main__":
+    # Parse command line arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-bfi", "--bagfile_in", help='Full path to the bagfile', type=str, required=True)
+    ap.add_argument("-bfo", "--bagfile_out", help='Full path to output the bagfile. If not given will be named out.bag and placed on the same folder as the input bag.', type=str, required=False)
+    ap.add_argument("-ct", "--camera_topic", help='Camera topic. Example: ... -ct camera/camera_info', type=str, required=True)
+    ap.add_argument("-y", "--yaml", help='Full path to the yaml for the camera intrinsics.', type=str, required=True)
+
+    args = ap.parse_args()
+
+    # Load the yaml file
+    with open(args.yaml, 'r') as file:
+        config = yaml.load(file, Loader=yaml.FullLoader)
+
+    if args.bagfile_out is None:
+        path = os.path.dirname(args.bagfile_in)
+        args.bagfile_out = path + '/out.bag'
+    
+    
+    # Call the function
+    config_camera_intrinsics(args.bagfile_in, args.bagfile_out, args.camera_topic, config['distortion_coefficients']['data'], config['camera_matrix']['data'], config['rectification_matrix']['data'], config['projection_matrix']['data'])
