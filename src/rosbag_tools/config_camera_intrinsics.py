@@ -27,6 +27,7 @@ def config_camera_intrinsics(bag_file_path, bag_file_out_path, camera_topic, dis
     # --------------------------------------------------------------------------
     first_time = True # print msg only one time
     print('Converting bagfile. Please wait...')
+    print('Changing ' + Fore.BLUE + camera_topic + Style.RESET_ALL)
     for topic, msg, stamp, connection_header in tqdm(bag.read_messages(return_connection_header=True), total=bag.get_message_count(), desc='Processing bag messages'):
         if topic == camera_topic:
             if first_time:
@@ -38,7 +39,8 @@ def config_camera_intrinsics(bag_file_path, bag_file_out_path, camera_topic, dis
                 msg.D[1] = distortion[1]
                 msg.D[2] = distortion[2]
                 msg.D[3] = distortion[3]
-                msg.D[4] = distortion[4]
+                if msg.distortion_model == 'plumb_bob':
+                    msg.D[4] = distortion[4]
                 msg.D = tuple(msg.D)
 
             if k_matrix:
