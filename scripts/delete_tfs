@@ -81,9 +81,10 @@ if __name__ == "__main__":
 
                 transforms_to_keep.append(msg.transforms[i])
 
-            # print(f'Transformations to keep: {transforms_to_keep}')        
-            msg.transforms = transforms_to_keep                        
-            bag_out.write(topic, msg, stamp, connection_header=connection_header)
+            # print(f'Transformations to keep from {topic}: {transforms_to_keep}')        
+            if not transforms_to_keep == []:
+                msg.transforms = transforms_to_keep
+                bag_out.write(topic, msg, stamp, connection_header=connection_header)
             
         else:
             bag_out.write(topic, msg, stamp, connection_header=connection_header)
